@@ -1,0 +1,28 @@
+{
+  "name": "coinbase-agent",
+  "version": "0.1.0",
+  "private": true,
+  "description": "A Yeetful x402 payer agent on Coinbase Advanced Trade: shows the portfolio, pays x402 for a market signal through its expense account, and places order-book trades (dry-run by default).",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@yeetful/agent-kit": "workspace:*",
+    "jose": "^5.9.6",
+    "next": "16.2.7",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.5",
+    "@types/react": "^19.0.7",
+    "@types/react-dom": "^19.0.3",
+    "typescript": "^5.7.3",
+    "vitest": "^2.1.8"
+  }
+}

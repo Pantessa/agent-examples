@@ -1,0 +1,13 @@
+node_modules/
+.next/
+dist/
+.turbo/
+*.tsbuildinfo
+
+# Never commit real keys — wallet keys, CDP API secrets.
+.env
+.env.local
+.env.*.local
+
+.DS_Store
+*.log
