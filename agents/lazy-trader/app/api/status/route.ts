@@ -7,7 +7,14 @@ export const dynamic = 'force-dynamic'
 
 export async function GET() {
   const live = isLive()
-  const own = loadAgentWallet().account!.address
+  // A malformed PRIVATE_KEY must surface as a readable config error, not a
+  // bare 500 that leaves the UI stuck on "loading…".
+  let own: `0x${string}`
+  try {
+    own = loadAgentWallet().account!.address
+  } catch (err) {
+    return NextResponse.json({ error: (err as Error).message }, { status: 500 })
+  }
   return NextResponse.json({
     mode: live ? 'live' : 'dry-run',
     agentWallet: own,

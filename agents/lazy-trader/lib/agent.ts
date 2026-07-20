@@ -11,7 +11,7 @@
  * stops before any signature. LIVE=1 + PRIVATE_KEY pays the paid door through
  * the expense account (receipted) and actually signs.
  */
-import { createExpenseAccount, isLive, loadAgentWallet, type ExpenseAccount, type Receipt } from '@yeetful/agent-kit'
+import { createExpenseAccount, isLive, loadAgentPrivateKey, loadAgentWallet, type ExpenseAccount, type Receipt } from '@yeetful/agent-kit'
 import { createWalletClient, http } from 'viem'
 import { privateKeyToAccount } from 'viem/accounts'
 import {
@@ -102,7 +102,7 @@ export interface RunDeps {
 }
 
 async function defaultSignLeg(tx: { to: string; data: string; value: string; chainId: number }): Promise<string> {
-  const pk = process.env.PRIVATE_KEY as `0x${string}` | undefined
+  const pk = loadAgentPrivateKey()
   if (!pk) throw new Error('LIVE=1 needs PRIVATE_KEY to sign legs.')
   const goalChain = resolveGoalChainById(tx.chainId)
   if (!goalChain) throw new Error(`Leg targets unsupported chainId ${tx.chainId}.`)

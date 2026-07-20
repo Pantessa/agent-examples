@@ -16,4 +16,4 @@ export type {
   Receipt,
 } from './expense-account'
 
-export { loadAgentWallet, isLive } from './env'
+export { loadAgentWallet, loadAgentPrivateKey, isLive } from './env'

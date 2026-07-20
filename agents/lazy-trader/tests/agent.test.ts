@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from 'vitest'
+import { describe, it, expect, vi, afterEach } from 'vitest'
 import { heldOnDestination, runLazyTrade } from '@/lib/agent'
 import type { FetchLike } from '@/lib/mcp'
 
@@ -109,5 +109,34 @@ describe('runLazyTrade (dry-run, offline)', () => {
 
   it('rejects unknown goal chains loudly', async () => {
     await expect(runLazyTrade({ chain: 'solana', token: 'USDC', amount: 1 })).rejects.toThrow(/Unknown goal chain/)
+  })
+})
+
+describe('loadAgentPrivateKey (paste-tolerant env parsing)', () => {
+  const saved = process.env.PRIVATE_KEY
+  const KEY = 'a'.repeat(64)
+  afterEach(() => {
+    if (saved === undefined) delete process.env.PRIVATE_KEY
+    else process.env.PRIVATE_KEY = saved
+  })
+
+  it('returns null when unset', async () => {
+    delete process.env.PRIVATE_KEY
+    const { loadAgentPrivateKey } = await import('@yeetful/agent-kit')
+    expect(loadAgentPrivateKey()).toBeNull()
+  })
+
+  it('accepts the key with or without 0x, quoted or with stray whitespace', async () => {
+    const { loadAgentPrivateKey } = await import('@yeetful/agent-kit')
+    for (const raw of [KEY, `0x${KEY}`, `"0x${KEY}"`, ` ${KEY}\n`]) {
+      process.env.PRIVATE_KEY = raw
+      expect(loadAgentPrivateKey()).toBe(`0x${KEY}`)
+    }
+  })
+
+  it('rejects malformed values with a message naming the env var and the problem', async () => {
+    const { loadAgentPrivateKey } = await import('@yeetful/agent-kit')
+    process.env.PRIVATE_KEY = '0xnot-a-key'
+    expect(() => loadAgentPrivateKey()).toThrow(/PRIVATE_KEY.*64 hex chars.*redeploy/s)
   })
 })
