@@ -15,7 +15,7 @@
   },
   "dependencies": {
     "viem": "^2.21.0",
-    "yeetful": "^0.7.0"
+    "yeetful": "^0.10.1"
   },
   "devDependencies": {
     "@types/node": "^22.10.5",

@@ -89,8 +89,8 @@ importers:
         specifier: ^2.21.0
         version: 2.53.1(typescript@5.9.3)
       yeetful:
-        specifier: ^0.7.0
-        version: 0.7.0(viem@2.53.1)
+        specifier: ^0.10.1
+        version: 0.10.1(viem@2.53.1)
     devDependencies:
       '@types/node':
         specifier: ^22.10.5
@@ -1617,8 +1617,8 @@ packages:
         optional: true
     dev: false
 
-  /yeetful@0.7.0(viem@2.53.1):
-    resolution: {integrity: sha512-3Zj7tVRTArpeMrv9KF9SHvUNWY3LvwxZ68p9DBlQraI2hJeaEt67gd2BY+CEjfekcK4+wQS9SM1nscRFNnjgHw==}
+  /yeetful@0.10.1(viem@2.53.1):
+    resolution: {integrity: sha512-yAQO5y2Etc8LhVlji5VrhYlAkkFuigEdqgiTVxAw7XVFs5wP+HUnLkFvsNg7tsvxcdJKC1Vk6nba8etIVUl1+g==}
     engines: {node: '>=18'}
     peerDependencies:
       viem: ^2.21.0
