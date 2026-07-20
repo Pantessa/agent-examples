@@ -10,6 +10,9 @@ denial). Agents pay per call in USDC on Base — no API keys to the data they bu
 packages/agent-kit/      shared payer plumbing: viem wallet from env + the yeetful() expense account + receipt log
 agents/coinbase/         a Coinbase trading agent → reads its portfolio, places order-book trades,
                          and pays x402 for the market signal it trades on   → next.js app
+agents/lazy-trader/      an agent with funds on the WRONG chain → pays x402 for Yeetful's
+                         fund_and_build runbook, signs each cross-chain leg with its own key,
+                         completes the goal (dry-run by default)            → next.js app
 ```
 
 > `x402-services` owns the *payment gate* (a service is a thin adapter over
