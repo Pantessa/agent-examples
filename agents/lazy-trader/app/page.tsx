@@ -36,7 +36,7 @@ export default function Page() {
   useEffect(() => {
     fetch('/api/status')
       .then((r) => r.json())
-      .then(setStatus)
+      .then((s) => (s.error ? setError(String(s.error)) : setStatus(s)))
       .catch(() => undefined)
   }, [])
 
