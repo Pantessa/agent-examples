@@ -1,0 +1,28 @@
+{
+  "name": "lazy-trader-agent",
+  "version": "0.1.0",
+  "private": true,
+  "description": "The lazy trader: a Yeetful payer agent with funds on the WRONG chain. Give it a goal ('have 2 USDC on Arbitrum, then supply it to Aave') — it pays x402 for Yeetful's fund_and_build runbook, signs the cross-chain legs with its own key, and completes the goal. Dry-run by default.",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@yeetful/agent-kit": "workspace:*",
+    "next": "16.2.7",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "viem": "^2.21.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.5",
+    "@types/react": "^19.0.7",
+    "@types/react-dom": "^19.0.3",
+    "typescript": "^5.7.3",
+    "vitest": "^2.1.8"
+  }
+}
