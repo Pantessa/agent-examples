@@ -1,0 +1,21 @@
+{
+  "name": "roster-manager-template",
+  "version": "0.1.0",
+  "private": true,
+  "description": "A minimal EXTERNAL Roster manager for Pantessa — own key, public API only (GET /api/roster/feed + POST /api/broker/mcp), no Pantessa internals. Discovers a listed slot, courts it, proposes ONE $-priced in-mandate under-cap open, polls status, handles declined/benched/fired honestly. Dry-run by default. Built to SECOND-MANAGER-CONTRACT.md.",
+  "type": "module",
+  "scripts": {
+    "run:once": "tsx run.ts",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "viem": "^2.21.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.5",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.3",
+    "vitest": "^2.1.8"
+  }
+}
