@@ -13,6 +13,10 @@ agents/coinbase/         a Coinbase trading agent → reads its portfolio, place
 agents/lazy-trader/      an agent with funds on the WRONG chain → pays x402 for Yeetful's
                          fund_and_build runbook, signs each cross-chain leg with its own key,
                          completes the goal (dry-run by default)            → next.js app
+agents/robinhood-desk/   THE EMBED EXAMPLE: a standalone tokenized-stock portfolio desk on
+                         Robinhood Chain with the Pantessa chat embedded as the execution
+                         surface — holdings read from the chain, every button a prompt, the
+                         visitor's own wallet signs on the host page (pantessa/embed) → next.js app
 ```
 
 > `x402-services` owns the *payment gate* (a service is a thin adapter over
@@ -55,6 +59,7 @@ projects.
 ```bash
 pnpm install
 pnpm --filter coinbase-agent dev      # or: cd agents/coinbase && pnpm dev
+pnpm --filter robinhood-chain-desk dev # the embed example — agents/robinhood-desk/README.md
 pnpm typecheck                         # whole workspace
 pnpm --filter coinbase-agent test      # JWT + order-builder unit tests
 ```
