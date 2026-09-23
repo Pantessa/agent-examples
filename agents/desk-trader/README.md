@@ -44,6 +44,9 @@ cd agents/desk-trader
 pnpm dev                          # DRY: fresh throwaway key, production desk
 ```
 
+> `driveJob` ships in **`pantessa@1.1.0`**. Until that version is on npm,
+> install the release tarball first: `pnpm add /path/to/pantessa-1.1.0.tgz`.
+
 That is safe with nothing configured: it mints a key that holds nothing, opens a
 real intent, consents, lets the desk compile a real job, prints the legs it
 would sign, and stops. Then, with a burner holding ~$15 on Base or Arbitrum:
@@ -52,43 +55,62 @@ would sign, and stops. Then, with a burner holding ~$15 on Base or Arbitrum:
 AGENT_KEY=0x… pnpm dev            # same run, against YOUR wallet
 AGENT_KEY=0x… LIVE=1 pnpm dev     # arm it — real signatures, real money
 pnpm dev -- --ask "…" --option 1  # your sentence, your funding route
-pnpm test                         # 31 checks against a Pantessa in a box
+pnpm test                         # 34 checks against a Pantessa in a box
 ```
 
 ## What a dry run actually prints
 
-Against production, with a wallet that holds nothing — the guard posture, end to
-end:
+Verbatim, against production, with a wallet that holds nothing — the guard
+posture, end to end:
 
 ```
-wallet    0x741288D2c4244C2111c1465f8ccE6734761fa7c3
+note      no AGENT_KEY set — minted a fresh throwaway key for this run.
+          It holds nothing, so the desk will read an empty wallet and say so.
+
+wallet    0x368AE1b2A8773Cb43D3E97891e2125dAfe299937
 desk      https://www.pantessa.com
 ask       "Deposit 13 USDC to Hyperliquid, then 2x long $12 of HYPE, then protect my HYPE long with a 5% stop"
 mode      DRY — stops before the first broadcast
 
-intent    urcnnhqcr4
-record    https://www.pantessa.com/agents/45aa95a24fad1144
-layer     hyperliquid (action) via hyperliquid-free, near-intents-mcp-yeetful
+intent    waw8f39dyp
+record    https://www.pantessa.com/agents/dbad1d50cb307fd5
+layer     jobs (action) via hyperliquid-free, near-intents-mcp-yeetful
 holdings  $0.00 movable vs $12.00 asked -> short
 
-consent   signed by 0x7412… — this moves nothing
+options
+  [0] proceed    Proceed as asked
+  [1] decline    Walk away
 
-job       cmudy6v3v0009123dwe8t8dh5 — 4 legs
+choosing  proceed — Proceed as asked
+
+consent   signed by 0x368AE1b2A8773Cb43D3E97891e2125dAfe299937 (0x68dafee6ba…) — this moves nothing
+
+job       cmudyv8lb000e123d132hne4z — 4 legs
    0 sign  Deposit 13 USDC to Hyperliquid
    1 wait  Hyperliquid credits the deposit
    2 sign  2x Long $12 of HYPE on Hyperliquid
    3 auto  Arm stop-loss on HYPE (5%)
 
+driving   dry — printing the legs, signing none
+  leg 0 failed — Deposit 13 USDC to Hyperliquid
+
 GUARD REFUSED — "Deposit 13 USDC to Hyperliquid" refused: Wallet holds only
 0 USDC on Arbitrum — bridge funds there first (cross-chain swap).
 Nothing was signed. The build is fail-closed: a leg it cannot check is a leg
 it will not offer.
+closed    waw8f39dyp — the dry run leaves nothing behind
+
+outcome   {"kind":"refused","where":"guard"}
 ```
 
-Read the last paragraph again: the desk compiled the whole sequence and then
+Read the end again: the desk compiled the whole four-leg sequence and then
 **refused to produce signable material for leg 0**, because the wallet could not
 pay for it. No calldata ever existed. Fund the burner and the same command walks
 all four legs.
+
+A wallet with money but not enough for *this* leg gets the gentler version —
+`WITHHELD at leg N`, with the runner's own sentence. That is not a failure: the
+job stays live and the leg is offered the moment the money lands.
 
 ## The safety posture
 
@@ -137,10 +159,17 @@ reserved for the agent's own faults: bad config, an unreachable desk, a bug.
 2x long $12 of HYPE on hyperliquid
 ```
 
-is one step, so the desk refuses it by name — *"does not compile to a multi-step
-job (it is a single-step ask)"* — and tells you to negotiate further or hand it
-to a human. Try it; it is a useful thirty seconds. The default ask is the
-compound that reaches the agent-signed path:
+is one step, so the desk refuses it by name. Try it — `pnpm dev -- --ask "2x long
+$12 of HYPE on hyperliquid"` — it is a useful thirty seconds:
+
+```
+DESK REFUSED — "2x long $12 of HYPE on hyperliquid" does not compile to a
+multi-step job (it is a single-step ask). The agent-signed path exists for
+SEQUENCED flows (fund → wait for arrival → act). For single steps or
+clarifications, negotiate further or use broker_handoff.
+```
+
+The default ask is the compound that reaches the agent-signed path today:
 
 ```
 Deposit 13 USDC to Hyperliquid, then 2x long $12 of HYPE, then protect my HYPE long with a 5% stop
@@ -148,6 +177,10 @@ Deposit 13 USDC to Hyperliquid, then 2x long $12 of HYPE, then protect my HYPE l
 
 Four legs across two settlement boundaries. That is the shape this example is
 about.
+
+> The desk is learning to compose that funding leg itself, so the bare sentence
+> will compile too. Until that ships, the compound is the shape that works, and
+> the refusal above is what production says today.
 
 ## The install (what an agent actually writes)
 

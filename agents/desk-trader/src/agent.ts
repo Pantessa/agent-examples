@@ -43,6 +43,7 @@ export interface RunOptions {
 export type RunOutcome =
   | { kind: 'refused'; where: 'desk'; why: string; intentId?: string }
   | { kind: 'refused'; where: 'guard'; why: string; intentId: string; jobId: string }
+  | { kind: 'withheld'; why: string; seq: number; intentId: string; jobId: string }
   | { kind: 'dry'; intentId: string; jobId: string; legs: DeskLegView[] }
   | { kind: 'done'; intentId: string; jobId: string; legs: DeskLegView[]; signed: number }
   | { kind: 'stopped'; intentId: string; jobId: string; status: string; why: string | null }
@@ -62,6 +63,12 @@ export function pickOption(plan: BrokerPlan, index: number | null): BrokerOption
 }
 
 const money = (n: number | null | undefined) => (n == null ? '—' : `$${n.toFixed(2)}`)
+
+/** Stamp every call a Pantessa drill makes, including the ones `driveJob`
+ *  makes on our behalf — `driveJob` takes a `fetch`, not headers. */
+function stampedFetch(headers: Record<string, string>): typeof fetch {
+  return (input, init) => fetch(input as never, { ...init, headers: { ...(init?.headers as Record<string, string> | undefined), ...headers } })
+}
 
 export async function runDeskTrader(opts: RunOptions): Promise<RunOutcome> {
   const say = opts.log ?? ((l: string) => console.log(l))
@@ -135,12 +142,18 @@ export async function runDeskTrader(opts: RunOptions): Promise<RunOutcome> {
     signer: opts.account,
     dryRun: !opts.live,
     rpc: opts.rpc,
-    fetch: opts.fetchImpl,
+    fetch: opts.fetchImpl ?? (opts.internalRun ? stampedFetch({ 'x-yf-internal-run': '1' }) : undefined),
     onLeg: (view: DeskLegView) => {
       legs.push(view)
       say(`\n  leg ${view.seq} [${view.kind}] ${view.summary || '(no summary)'}`)
       say(`    chain ${view.chainId ?? '—'}   value ${money(view.valueUsd)}${view.staleAfterMs != null ? `   re-fetch within ${Math.round(view.staleAfterMs / 1000)}s` : ''}`)
       say(`    ${opts.live ? 'signing with our own key' : 'WOULD sign: ' + Object.keys(view.artifact ?? {}).join(' + ')}`)
+    },
+    // Nothing to sign yet: a wait leg settling, the runner still building, or
+    // a step the runner WITHHELD because the wallet cannot fund it. The last
+    // one is the honest refusal that matters most, so say it out loud.
+    onWaiting: (note: { seq: number; status: string; title: string; withheld?: string }) => {
+      say(note.withheld ? `  leg ${note.seq} withheld — ${note.withheld}` : `  leg ${note.seq} ${note.status} — ${note.title}`)
     },
     onDone: (seq: number, res: DeskLegResult) => {
       signed += 1
@@ -150,6 +163,15 @@ export async function runDeskTrader(opts: RunOptions): Promise<RunOutcome> {
 
   // The desk's own summary of what the runner made of it. A failed leg's
   // reason is the guard talking, and that is worth reading out loud.
+  // WITHHELD is not a failure: the runner built nothing because the wallet
+  // cannot pay for this leg yet, and the job stays live — the step is offered
+  // the moment the money lands.
+  if (result.withheld) {
+    say(`\nWITHHELD at leg ${result.withheld.seq} — ${result.withheld.reason}`)
+    say('Nothing was signed, and the job is still live: fund the wallet and it picks up where it stopped.')
+    if (!opts.live) await closeQuietly(desk, open.intentId, say)
+    return { kind: 'withheld', why: result.withheld.reason, seq: result.withheld.seq, intentId: open.intentId, jobId: ex.jobId }
+  }
   if (result.status === 'failed') {
     say(`\nGUARD REFUSED — ${result.failReason ?? 'the runner failed the job'}`)
     say('Nothing was signed. The build is fail-closed: a leg it cannot check is a leg it will not offer.')
