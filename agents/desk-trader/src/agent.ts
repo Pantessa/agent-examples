@@ -21,7 +21,7 @@
  */
 import { driveJob, type DeskLegView, type DeskLegResult } from 'pantessa/desk'
 import type { PrivateKeyAccount } from 'viem/accounts'
-import { Desk, DeskRefusal, deskExecuteConsentMessage, tokenFromDriveUrl, type BrokerOption, type BrokerPlan } from './desk.js'
+import { Desk, DeskRefusal, deskExecuteConsentMessage, looksLikeConsentMismatch, tokenFromDriveUrl, type BrokerOption, type BrokerPlan } from './desk.js'
 
 export interface RunOptions {
   account: PrivateKeyAccount
@@ -63,12 +63,6 @@ export function pickOption(plan: BrokerPlan, index: number | null): BrokerOption
 }
 
 const money = (n: number | null | undefined) => (n == null ? '—' : `$${n.toFixed(2)}`)
-
-/** Stamp every call a Pantessa drill makes, including the ones `driveJob`
- *  makes on our behalf — `driveJob` takes a `fetch`, not headers. */
-function stampedFetch(headers: Record<string, string>): typeof fetch {
-  return (input, init) => fetch(input as never, { ...init, headers: { ...(init?.headers as Record<string, string> | undefined), ...headers } })
-}
 
 export async function runDeskTrader(opts: RunOptions): Promise<RunOutcome> {
   const say = opts.log ?? ((l: string) => console.log(l))
@@ -114,18 +108,28 @@ export async function runDeskTrader(opts: RunOptions): Promise<RunOutcome> {
 
   // ── (c) consent ─────────────────────────────────────────────────────────
   // Free (personal_sign costs no gas, so even an empty wallet can do it) and
-  // it authorizes nothing but the compile — read the text, it says so.
-  const message = deskExecuteConsentMessage(open.intentId, wallet)
+  // it authorizes nothing but the compile — read the text, it says so. The
+  // instant goes INTO the text and travels beside the signature, so a consent
+  // captured today cannot be replayed tomorrow.
+  const issuedAt = new Date().toISOString()
+  const message = deskExecuteConsentMessage(open.intentId, wallet, issuedAt)
   const walletSignature = await opts.account.signMessage({ message })
-  say(`\nconsent   signed by ${wallet} (${walletSignature.slice(0, 12)}…) — this moves nothing`)
+  say(`\nconsent   signed by ${wallet} at ${issuedAt} (${walletSignature.slice(0, 12)}…) — this moves nothing`)
 
   // ── (d) execute ─────────────────────────────────────────────────────────
   let ex
   try {
-    ex = await desk.execute(open.intentId, walletSignature)
+    ex = await desk.execute(open.intentId, walletSignature, { issuedAt, agentKey: opts.agentKey })
   } catch (e) {
-    if (e instanceof DeskRefusal) return refusal(say, e.message, open.intentId)
-    throw e
+    if (!(e instanceof DeskRefusal)) throw e
+    // A desk that predates the replay window rebuilds a FOUR-line text, so our
+    // signature recovers to somebody else. We do not re-sign without the
+    // window to please it — we say which end is old and stop.
+    if (looksLikeConsentMismatch(e.message)) {
+      say('\nnote      this desk rebuilt a different consent text — it predates the replay window (website#851).')
+      say('          Point PANTESSA_BASE at a deployment that has it; the agent will not sign a weaker consent.')
+    }
+    return refusal(say, e.message, open.intentId)
   }
   const token = tokenFromDriveUrl(ex.drive.poll)
   say(`\njob       ${ex.jobId} — ${ex.steps.length} legs`)
@@ -142,7 +146,8 @@ export async function runDeskTrader(opts: RunOptions): Promise<RunOutcome> {
     signer: opts.account,
     dryRun: !opts.live,
     rpc: opts.rpc,
-    fetch: opts.fetchImpl ?? (opts.internalRun ? stampedFetch({ 'x-yf-internal-run': '1' }) : undefined),
+    fetch: opts.fetchImpl,
+    headers: opts.internalRun ? { 'x-yf-internal-run': '1' } : undefined,
     onLeg: (view: DeskLegView) => {
       legs.push(view)
       say(`\n  leg ${view.seq} [${view.kind}] ${view.summary || '(no summary)'}`)

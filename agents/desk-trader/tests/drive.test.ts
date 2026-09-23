@@ -15,6 +15,7 @@
 import { describe, it, expect, afterEach } from 'vitest'
 import { privateKeyToAccount } from 'viem/accounts'
 import { recoverTransactionAddress, parseTransaction, type TransactionSerialized } from 'viem'
+import { LEG_RESULT_KEYS } from 'pantessa/desk'
 import { startMockDesk, type MockDesk, type MockScenario, type MockStep } from './mock-desk.js'
 
 declare const __SDK_PRESENT__: boolean
@@ -34,6 +35,30 @@ const hlTypedData = (nonce: number) => ({
   primaryType: 'Agent',
   message: { source: 'a', connectionId: `0x${nonce.toString(16).padStart(64, '0')}` },
 })
+
+/** The C2 batch shape: `orderRequest.batch` at the TOP level, members tagged
+ *  by kind, the `order` last. */
+function batchStep(leverageNonce: number, orderNonce: number): MockStep {
+  return {
+    seq: 0,
+    kind: 'sign',
+    status: 'pending',
+    builder: 'native-hl-exec',
+    title: 'Set leverage, then long',
+    valueUsd: 12,
+    artifact: {
+      summary: 'Set leverage, then long',
+      orderRequest: {
+        protocol: 'hyperliquid',
+        expected: { coin: 'HYPE' },
+        batch: [
+          { kind: 'leverage', action: { type: 'updateLeverage' }, nonce: leverageNonce, typedData: hlTypedData(leverageNonce), expected: { coin: 'HYPE', leverage: 2 } },
+          { kind: 'order', action: { type: 'order' }, nonce: orderNonce, typedData: hlTypedData(orderNonce), expected: { coin: 'HYPE', kind: 'long', isBuy: true } },
+        ],
+      },
+    },
+  }
+}
 
 function scenario(steps: MockStep[]): MockScenario {
   return { fundingVerdict: 'short', movableUsd: 0, askUsd: 12, fundingOptions: [], executeRefusal: null, steps }
@@ -178,39 +203,34 @@ describe.skipIf(!SDK_PRESENT)('driveJob against the mock desk', () => {
     expect(m.broadcasts).toEqual([])
   })
 
-  it('signs a Hyperliquid batch in order, and stops at the first member the venue rejects', async () => {
+  it('signs a Hyperliquid batch in order, from the top-level orderRequest.batch', async () => {
     const a = Date.now()
     const b = a + 1
-    const { mock: m } = await drive(
-      scenario([
-        {
-          seq: 0,
-          kind: 'sign',
-          status: 'pending',
-          builder: 'native-hl-exec',
-          title: 'Set leverage, then long',
-          valueUsd: 12,
-          artifact: {
-            summary: 'Set leverage, then long',
-            orderRequest: {
-              protocol: 'hyperliquid',
-              hl: {
-                expected: { coin: 'HYPE' },
-                batch: [
-                  { action: { type: 'updateLeverage' }, nonce: a, typedData: hlTypedData(a), expected: { leverage: 2 } },
-                  { action: { type: 'order' }, nonce: b, typedData: hlTypedData(b), expected: { coin: 'HYPE' } },
-                ],
-              },
-            },
-          },
-        },
-      ]),
-    )
+    const { mock: m } = await drive(scenario([batchStep(a, b)]))
 
-    // Sequential nonces, in the order the venue must see them, one signature each.
+    // Sequential nonces, in the order the venue must see them — the leverage
+    // set first, the order last — one signature each, all ours.
     expect(m.hlSubmits.map((s) => s.nonce)).toEqual([a, b])
     expect(m.hlSubmits.every((s) => s.signer === ACCOUNT.address.toLowerCase())).toBe(true)
     expect(m.completes[0]!.result).toMatchObject({ batch: [{ ok: true }, { ok: true }] })
+  })
+
+  it('stops at the member the venue rejects, and POSTs the partial batch instead of throwing', async () => {
+    const a = Date.now()
+    const b = a + 1
+    // The leverage set lands; the order is refused for margin.
+    const { mock: m } = await drive({ ...scenario([batchStep(a, b)]), hlRejectNonce: b })
+
+    expect(m.hlSubmits.map((s) => s.nonce)).toEqual([a, b])
+    // The completion records WHICH member failed, so the runner can re-offer
+    // from it — a thrown error would have lost that.
+    const batch = (m.completes[0]!.result as { batch: Array<{ ok: boolean; error?: string }> }).batch
+    expect(batch).toHaveLength(2)
+    expect(batch[0]!.ok).toBe(true)
+    expect(batch[1]!.ok).toBe(false)
+    expect(batch[1]!.error).toMatch(/insufficient margin/)
+    // And only the keys the runner accepts came back.
+    expect(Object.keys(m.completes[0]!.result).every((k) => (LEG_RESULT_KEYS as readonly string[]).includes(k))).toBe(true)
   })
 
   it('classifies every leg and signs nothing in dryRun', async () => {

@@ -39,6 +39,13 @@ export interface MockScenario {
   failAt?: { seq: number; reason: string }
   /** Make /api/tx/refresh withhold the re-quote (the dead-calldata guard). */
   refreshBlocked?: boolean
+  /** Make the Hyperliquid relay reject the member carrying this nonce, the
+   *  way the venue refuses one action of a batch. */
+  hlRejectNonce?: number
+  /** Model a desk that predates the `Issued at:` line: it ignores `issued_at`
+   *  and rebuilds the FOUR-line consent, so a five-line signature recovers to
+   *  somebody else. This is what production looks like before website#851. */
+  legacyConsent?: boolean
 }
 
 export interface MockCall {
@@ -59,6 +66,8 @@ export interface MockDesk {
   broadcasts: Array<{ chainId: number; raw: string; hash: string }>
   /** The consent signature recovered by broker_execute (null until it runs). */
   consentSigner: string | null
+  /** The `issued_at` the accepted consent carried (null on a legacy desk). */
+  issuedAt: string | null
   close(): Promise<void>
 }
 
@@ -86,6 +95,10 @@ export async function startMockDesk(scenario: MockScenario, walletExpected?: str
   const refreshes: MockDesk['refreshes'] = []
   const state = {
     consentSigner: null as string | null,
+    /** The instant the accepted consent carried (null on a legacy desk). */
+    issuedAt: null as string | null,
+    /** The identity bound at open; execute must present the same one. */
+    agentKey: null as string | null,
     intentId: 'mockintent',
     intentWallet: walletExpected ? walletExpected.toLowerCase() : null,
     jobId: 'mockjob00000',
@@ -132,12 +145,17 @@ export async function startMockDesk(scenario: MockScenario, walletExpected?: str
   for (const step of state.steps) {
     const order = (step.artifact as { orderRequest?: Record<string, unknown> } | null)?.orderRequest
     if (!order) continue
-    const hl = order.hl as Record<string, unknown> | undefined
-    if (!hl) continue
+    const hl = (order.hl as Record<string, unknown> | undefined) ?? {}
     if (typeof hl.nonce === 'number' && order.typedData) hlTypedData.set(hl.nonce, order.typedData)
     const pre = hl.pre as Record<string, unknown> | undefined
     if (pre && typeof pre.nonce === 'number') hlTypedData.set(pre.nonce, pre.typedData)
-    for (const raw of (hl.batch as Array<Record<string, unknown>> | undefined) ?? []) {
+    // C2 ships the batch at the TOP level of orderRequest; `hl.batch` is the
+    // older spelling and both are indexed, exactly as the SDK reads both.
+    const members = [
+      ...((order.batch as Array<Record<string, unknown>> | undefined) ?? []),
+      ...((hl.batch as Array<Record<string, unknown>> | undefined) ?? []),
+    ]
+    for (const raw of members) {
       if (typeof raw.nonce === 'number') hlTypedData.set(raw.nonce, raw.typedData)
     }
   }
@@ -163,6 +181,7 @@ export async function startMockDesk(scenario: MockScenario, walletExpected?: str
         // wallet this intent is for, whatever the caller names at open.
         state.intentWallet = (walletExpected ? walletExpected.toLowerCase() : null) ?? String(args.wallet ?? '').toLowerCase()
         if (!args.agent_key) return sse(res, toolErr('broker_execute needs a bound agent identity — pass agent_key at open.'))
+        state.agentKey = String(args.agent_key)
         return sse(res, toolOk({
           intentId: state.intentId,
           state: 'open',
@@ -179,13 +198,32 @@ export async function startMockDesk(scenario: MockScenario, walletExpected?: str
         return sse(res, toolOk({ intentId: state.intentId, state: 'open', plan: planFor(state.ask, scenario), contract: '', next: [] }))
       }
       if (tool === 'broker_execute') {
-        // The real gate: recover the consent signature and refuse any signer
-        // but the wallet the intent was opened for.
+        // The real gates, in the order prod applies them: the bound identity,
+        // then the replay window, then recovery of the consent signature —
+        // refusing any signer but the wallet the intent was opened for.
+        if (!args.agent_key || args.agent_key !== state.agentKey) {
+          return sse(res, toolErr('broker_execute needs the same agent_key the intent was opened with.'))
+        }
         const sig = String(args.wallet_signature ?? '')
         if (!/^0x[0-9a-fA-F]{130}$/.test(sig)) return sse(res, toolErr('broker_execute needs wallet_signature — a 65-byte 0x signature over the consent text is required.'))
+        let issuedAt: string | undefined
+        if (!scenario.legacyConsent) {
+          issuedAt = typeof args.issued_at === 'string' ? args.issued_at : undefined
+          if (!issuedAt) return sse(res, toolErr('broker_execute needs issued_at — the ISO-8601 instant from the consent text.'))
+          const at = Date.parse(issuedAt)
+          if (!Number.isFinite(at) || Math.abs(Date.now() - at) > 10 * 60_000) {
+            return sse(res, toolErr('broker_execute needs issued_at within ten minutes of now, both ways.'))
+          }
+          state.issuedAt = issuedAt
+        }
         let signer: string
         try {
-          signer = await recoverMessageAddress({ message: deskExecuteConsentMessage(String(args.intent_id), state.intentWallet ?? ''), signature: sig as `0x${string}` })
+          // Rebuilt from the CALLER's own string, so a reformatted timestamp
+          // recovers to a different address — which is the whole point.
+          const text = issuedAt
+            ? deskExecuteConsentMessage(String(args.intent_id), state.intentWallet ?? '', issuedAt)
+            : legacyConsentText(String(args.intent_id), state.intentWallet ?? '')
+          signer = await recoverMessageAddress({ message: text, signature: sig as `0x${string}` })
         } catch {
           return sse(res, toolErr('broker_execute needs wallet_signature — the signature does not verify against the consent text.'))
         }
@@ -261,6 +299,9 @@ export async function startMockDesk(scenario: MockScenario, walletExpected?: str
         return json(res, 400, { error: 'the signature does not recover against the bytes this runner served.' })
       }
       hlSubmits.push({ signer, action: parsed.action, mode: parsed.mode, nonce: parsed.nonce })
+      if (scenario.hlRejectNonce === parsed.nonce) {
+        return json(res, 400, { error: 'the venue refused this action: insufficient margin' })
+      }
       return json(res, 200, { ok: true, status: 'ok', filled: { totalSz: '1.0', avgPx: '42.0' } })
     }
 
@@ -315,6 +356,9 @@ export async function startMockDesk(scenario: MockScenario, walletExpected?: str
     get consentSigner() {
       return state.consentSigner
     },
+    get issuedAt() {
+      return state.issuedAt
+    },
     close: () => new Promise<void>((resolve) => server.close(() => resolve())),
   }
 }
@@ -359,4 +403,16 @@ function feeApprovalTypedData(action: Record<string, unknown>, nonce: number) {
       nonce: BigInt(nonce),
     },
   }
+}
+
+/** The four-line consent a deployment that predates the replay window rebuilds.
+ *  Only `legacyConsent` scenarios use it — it is what an agent's five-line
+ *  signature fails against, on purpose. */
+function legacyConsentText(intentId: string, wallet: string): string {
+  return [
+    'Pantessa agent desk — execute consent',
+    `Intent: ${intentId}`,
+    `Wallet: ${wallet.toLowerCase()}`,
+    "Signing lets the desk compile this intent into a job owned by this wallet. It moves nothing by itself; every leg still needs this wallet's own signature.",
+  ].join('\n')
 }

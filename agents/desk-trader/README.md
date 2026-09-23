@@ -46,6 +46,10 @@ pnpm dev                          # DRY: fresh throwaway key, production desk
 
 > `driveJob` ships in **`pantessa@1.1.0`**. Until that version is on npm,
 > install the release tarball first: `pnpm add /path/to/pantessa-1.1.0.tgz`.
+>
+> The agent-signed path also needs a desk carrying **website#851** (the five-line
+> consent, and `issued_at` + `agent_key` on `broker_execute`). Against an older
+> deployment the run stops at the consent and names which end is old.
 
 That is safe with nothing configured: it mints a key that holds nothing, opens a
 real intent, consents, lets the desk compile a real job, prints the legs it
@@ -55,13 +59,13 @@ would sign, and stops. Then, with a burner holding ~$15 on Base or Arbitrum:
 AGENT_KEY=0x… pnpm dev            # same run, against YOUR wallet
 AGENT_KEY=0x… LIVE=1 pnpm dev     # arm it — real signatures, real money
 pnpm dev -- --ask "…" --option 1  # your sentence, your funding route
-pnpm test                         # 34 checks against a Pantessa in a box
+pnpm test                         # 39 checks against a Pantessa in a box
 ```
 
 ## What a dry run actually prints
 
-Verbatim, against production, with a wallet that holds nothing — the guard
-posture, end to end:
+Verbatim, against production **before website#851**, with a wallet that holds
+nothing — the guard posture, end to end:
 
 ```
 note      no AGENT_KEY set — minted a fresh throwaway key for this run.
@@ -83,7 +87,7 @@ options
 
 choosing  proceed — Proceed as asked
 
-consent   signed by 0x368AE1b2A8773Cb43D3E97891e2125dAfe299937 (0x68dafee6ba…) — this moves nothing
+consent   signed by 0x368AE1b2A8773Cb43D3E97891e2125dAfe299937 at 2026-09-23T11:20:44.107Z (0x68dafee6ba…) — this moves nothing
 
 job       cmudyv8lb000e123d132hne4z — 4 legs
    0 sign  Deposit 13 USDC to Hyperliquid
@@ -111,6 +115,21 @@ all four legs.
 A wallet with money but not enough for *this* leg gets the gentler version —
 `WITHHELD at leg N`, with the runner's own sentence. That is not a failure: the
 job stays live and the leg is offered the moment the money lands.
+
+### The consent is time-bound, and the agent will not weaken it
+
+Line 4 of the text the wallet signs is `Issued at: <ISO-8601 instant>`, and the
+same string travels beside the signature as `issued_at`. The desk rebuilds the
+text from *your* string and accepts it inside a ten-minute window either way, so
+a captured consent cannot be replayed tomorrow. A deployment that predates the
+line rebuilds a four-line text, your signature recovers to somebody else, and
+this agent says which end is old rather than re-signing without the window:
+
+```
+note      this desk rebuilt a different consent text — it predates the replay
+          window (website#851). Point PANTESSA_BASE at a deployment that has it;
+          the agent will not sign a weaker consent.
+```
 
 ## The safety posture
 

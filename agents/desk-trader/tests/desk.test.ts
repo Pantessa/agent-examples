@@ -1,7 +1,8 @@
 import { describe, it, expect } from 'vitest'
 import { privateKeyToAccount } from 'viem/accounts'
 import { recoverMessageAddress } from 'viem'
-import { parseMcpBody, deskExecuteConsentMessage, tokenFromDriveUrl, Desk, DeskRefusal } from '../src/desk.js'
+import { parseMcpBody, deskExecuteConsentMessage, looksLikeConsentMismatch, tokenFromDriveUrl, Desk, DeskRefusal } from '../src/desk.js'
+import { deskExecuteConsentMessage as sdkConsent } from 'pantessa/desk'
 import { pickOption } from '../src/agent.js'
 import { loadConfig, DEFAULT_ASK } from '../src/config.js'
 import type { BrokerPlan } from '../src/desk.js'
@@ -10,36 +11,65 @@ const KEY = '0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d'
 const ACCOUNT = privateKeyToAccount(KEY)
 
 describe('the consent text', () => {
-  // The desk recovers the signer from these exact bytes. A stray character
-  // here and every broker_execute this example makes is refused, so the
-  // string is pinned literally rather than rebuilt from the same helper.
+  // The desk recovers the signer from these exact bytes, rebuilt from the
+  // caller's own `issued_at`. A stray character here and every broker_execute
+  // this example makes is refused, so the string is pinned literally rather
+  // than rebuilt from the same helper. 292 bytes; DRIVE.md is the source.
   const EXPECTED = [
-    'Pantessa agent desk — execute consent',
+    'Pantessa agent desk \u2014 execute consent',
     'Intent: abc123',
     'Wallet: 0x1234567890abcdef1234567890abcdef12345678',
+    'Issued at: 2026-09-23T11:00:00.000Z',
     "Signing lets the desk compile this intent into a job owned by this wallet. It moves nothing by itself; every leg still needs this wallet's own signature.",
   ].join('\n')
 
   it('is byte-identical to the desk\'s own deskExecuteConsentMessage', () => {
-    expect(deskExecuteConsentMessage('abc123', '0x1234567890ABCDEF1234567890abcdef12345678')).toBe(EXPECTED)
+    expect(deskExecuteConsentMessage('abc123', '0x1234567890ABCDEF1234567890abcdef12345678', '2026-09-23T11:00:00.000Z')).toBe(EXPECTED)
+    // Five lines joined by \n, no trailing newline — DRIVE.md is the source.
+    expect(EXPECTED.split('\n')).toHaveLength(5)
+    expect(EXPECTED.endsWith('\n')).toBe(false)
   })
 
-  it('carries an em dash, an ASCII apostrophe, and a lowercased wallet', () => {
-    const msg = deskExecuteConsentMessage('i', '0xAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA')
-    expect(msg).toContain('—') // em dash, not a hyphen
+  it('is byte-identical to the published SDK\'s', () => {
+    // pantessa/desk mirrors lib/broker-exec.ts; if the two ever drift, an
+    // agent signs one text while the desk rebuilds another and the failure
+    // reads as a wallet bug. Pin them to each other.
+    expect(sdkConsent('abc123', '0x1234567890ABCDEF1234567890abcdef12345678', '2026-09-23T11:00:00.000Z')).toBe(EXPECTED)
+  })
+
+  it('carries an em dash, an ASCII apostrophe, a lowercased wallet and the instant verbatim', () => {
+    const msg = deskExecuteConsentMessage('i', '0xAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA', '2026-01-02T03:04:05.678Z')
+    expect(msg).toContain('\u2014') // em dash, not a hyphen
     expect(msg).toContain("wallet's") // ASCII apostrophe, not U+2019
-    expect(msg).not.toContain('’')
+    expect(msg).not.toContain('\u2019')
     expect(msg).toContain('Wallet: 0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa')
+    // Verbatim: the desk rebuilds the line from the string we send it, so we
+    // must never reformat the instant.
+    expect(msg.split('\n')[3]).toBe('Issued at: 2026-01-02T03:04:05.678Z')
   })
 
   it('recovers to the signing agent and to nobody else', async () => {
-    const message = deskExecuteConsentMessage('xyz', ACCOUNT.address)
+    const at = new Date().toISOString()
+    const message = deskExecuteConsentMessage('xyz', ACCOUNT.address, at)
     const signature = await ACCOUNT.signMessage({ message })
     expect((await recoverMessageAddress({ message, signature })).toLowerCase()).toBe(ACCOUNT.address.toLowerCase())
     // The same signature over a DIFFERENT intent must not recover to us —
     // that is what makes the consent single-use and intent-bound.
-    const other = deskExecuteConsentMessage('zyx', ACCOUNT.address)
+    const other = deskExecuteConsentMessage('zyx', ACCOUNT.address, at)
     expect((await recoverMessageAddress({ message: other, signature })).toLowerCase()).not.toBe(ACCOUNT.address.toLowerCase())
+    // And neither does a different instant — the replay window is INSIDE the
+    // signed bytes, not just beside them.
+    const later = deskExecuteConsentMessage('xyz', ACCOUNT.address, '2020-01-01T00:00:00.000Z')
+    expect((await recoverMessageAddress({ message: later, signature })).toLowerCase()).not.toBe(ACCOUNT.address.toLowerCase())
+  })
+})
+
+describe('a desk that predates the replay window', () => {
+  it('is recognised by the shape of its refusal, and never re-signed weaker', () => {
+    expect(looksLikeConsentMismatch('broker_execute needs issued_at — the ISO-8601 instant.')).toBe(true)
+    expect(looksLikeConsentMismatch("the signature recovers to 0xdead…, not the intent's wallet")).toBe(true)
+    expect(looksLikeConsentMismatch('does not compile to a multi-step job (it is a single-step ask)')).toBe(false)
+    expect(looksLikeConsentMismatch('The agent desk hourly rate limit for this connection is reached.')).toBe(false)
   })
 })
 
@@ -71,8 +101,9 @@ describe('a tool refusal', () => {
       fetchImpl: async () =>
         new Response('event: message\ndata: {"result":{"content":[{"type":"text","text":"it is a single-step ask"}],"isError":true}}\n\n', { status: 200 }),
     })
-    await expect(desk.execute('i', '0x' + '11'.repeat(65))).rejects.toBeInstanceOf(DeskRefusal)
-    await expect(desk.execute('i', '0x' + '11'.repeat(65))).rejects.toThrow(/single-step ask/)
+    const proof = { issuedAt: new Date().toISOString(), agentKey: 'k' }
+    await expect(desk.execute('i', '0x' + '11'.repeat(65), proof)).rejects.toBeInstanceOf(DeskRefusal)
+    await expect(desk.execute('i', '0x' + '11'.repeat(65), proof)).rejects.toThrow(/single-step ask/)
   })
 })
 

@@ -129,8 +129,16 @@ export class Desk {
     return this.call<OpenResult>('broker_choose', { intent_id: intentId, option_id: optionId })
   }
 
-  execute(intentId: string, walletSignature: string): Promise<ExecuteResult> {
-    return this.call<ExecuteResult>('broker_execute', { intent_id: intentId, wallet_signature: walletSignature })
+  execute(intentId: string, walletSignature: string, proof: { issuedAt: string; agentKey: string }): Promise<ExecuteResult> {
+    return this.call<ExecuteResult>('broker_execute', {
+      intent_id: intentId,
+      wallet_signature: walletSignature,
+      // Sent VERBATIM: the desk rebuilds the consent text with this exact
+      // string, so a reformatted timestamp recovers to a different address.
+      issued_at: proof.issuedAt,
+      // The same identity the intent was opened with; compared timing-safe.
+      agent_key: proof.agentKey,
+    })
   }
 
   close(intentId: string): Promise<{ intentId: string; state: string; say: string }> {
@@ -148,16 +156,35 @@ export class Desk {
  * Signing this moves nothing. Every leg still needs this wallet's own
  * signature, one at a time, after the guard has built and checked it.
  *
- * Mirror of `deskExecuteConsentMessage` in the website's lib/broker-exec.ts —
- * byte for byte, including the em dash and the lowercased wallet.
+ * `issuedAt` is an ISO-8601 UTC instant (`new Date().toISOString()`) that goes
+ * into line 4 AND travels beside the signature as `issued_at`: the desk
+ * rebuilds this text from the caller's own string and accepts it inside a
+ * ten-minute window either way, so a captured consent cannot be replayed a day
+ * later. It is always sent; a desk that does not understand it refuses, and
+ * that refusal is the correct outcome.
+ *
+ * Mirror of `deskExecuteConsentMessage` in the website's lib/broker-exec.ts
+ * and in `pantessa/desk` — byte for byte, em dash (U+2014) and ASCII
+ * apostrophe included. One character of drift recovers to a different address
+ * and reads as a wallet bug, so it is pinned literally in the tests.
  */
-export function deskExecuteConsentMessage(intentId: string, wallet: string): string {
+export function deskExecuteConsentMessage(intentId: string, wallet: string, issuedAt: string): string {
   return [
     'Pantessa agent desk — execute consent',
     `Intent: ${intentId}`,
     `Wallet: ${wallet.toLowerCase()}`,
+    `Issued at: ${issuedAt}`,
     'Signing lets the desk compile this intent into a job owned by this wallet. It moves nothing by itself; every leg still needs this wallet\'s own signature.',
   ].join('\n')
+}
+
+/** A refusal shaped like "this desk rebuilt a different consent text than the
+ *  one we signed" — which, today, means a deployment that predates the
+ *  `Issued at:` line. We do NOT re-sign the older four-line text: dropping the
+ *  replay window to please an old server is the wrong way round. We say what
+ *  happened and stop. */
+export function looksLikeConsentMismatch(message: string): boolean {
+  return /issued_at|recovers to|does not verify against the consent text/i.test(message)
 }
 
 /**

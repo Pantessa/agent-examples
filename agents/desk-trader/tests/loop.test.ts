@@ -195,6 +195,33 @@ describe('the whole loop, against a Pantessa in a box', () => {
     expect(m.calls.map((c) => c.tool)).not.toContain('broker_close')
   })
 
+  it('binds the consent to an instant, and presents the identity it opened with', async () => {
+    const { outcome, out, mock: m } = await run(scenario())
+
+    const exec = m.calls.find((c) => c.tool === 'broker_execute')!
+    // Sent VERBATIM beside the signature; the desk rebuilds the text from it.
+    expect(typeof exec.args.issued_at).toBe('string')
+    expect(m.issuedAt).toBe(exec.args.issued_at)
+    expect(Math.abs(Date.now() - Date.parse(String(exec.args.issued_at)))).toBeLessThan(60_000)
+    // The identity bound at open, presented again at execute.
+    expect(exec.args.agent_key).toBe('desk-trader-test')
+    expect(m.calls.find((c) => c.tool === 'broker_open')!.args.agent_key).toBe('desk-trader-test')
+    expect(out).toContain(`at ${exec.args.issued_at}`)
+    expect(outcome.kind).toBe('dry')
+  })
+
+  it('will not re-sign a weaker consent for a desk that predates the replay window', async () => {
+    const { outcome, out, mock: m } = await run(scenario({ legacyConsent: true }))
+
+    // Exactly ONE execute attempt: dropping the instant to please an old
+    // server is the wrong way round, so the agent says which end is old.
+    expect(m.calls.filter((c) => c.tool === 'broker_execute')).toHaveLength(1)
+    expect(outcome).toMatchObject({ kind: 'refused', where: 'desk' })
+    expect(out).toContain('predates the replay window')
+    expect(out).toContain('will not sign a weaker consent')
+    expect(m.completes).toEqual([])
+  })
+
   it('walks away when told to, and never on its own', async () => {
     // With no funding route the desk offers [proceed, decline]; index 1 is
     // the walk-away, and only an explicit --option can reach it.
