@@ -15,7 +15,7 @@
 import { describe, it, expect, afterEach } from 'vitest'
 import { privateKeyToAccount } from 'viem/accounts'
 import { recoverTransactionAddress, parseTransaction, type TransactionSerialized } from 'viem'
-import { LEG_RESULT_KEYS } from 'pantessa/desk'
+import { DESK_LEG_RESULT_KEYS } from 'pantessa/desk'
 import { startMockDesk, type MockDesk, type MockScenario, type MockStep } from './mock-desk.js'
 
 declare const __SDK_PRESENT__: boolean
@@ -140,8 +140,15 @@ describe.skipIf(!SDK_PRESENT)('driveJob against the mock desk', () => {
     // Step 2 went out with the FRESH calldata the re-quote returned, not the
     // stale bytes the artifact was built with — the dead-calldata rule.
     expect(parseTransaction(m.broadcasts[1]!.raw as TransactionSerialized).to?.toLowerCase()).toBe('0x000000000000000000000000000000000000c0de')
-    // The completion names the LAST hash in the chain.
+    // The completion names the LAST hash in the chain, and lists every hop as
+    // exactly { hash, chainId } — the runner's fence drops anything else.
     expect(m.completes[0]!.result.txHash).toBe(m.broadcasts[1]!.hash)
+    const txs = (m.completes[0]!.result as { txs: Array<Record<string, unknown>> }).txs
+    expect(txs).toEqual([
+      { hash: m.broadcasts[0]!.hash, chainId: 8453 },
+      { hash: m.broadcasts[1]!.hash, chainId: 8453 },
+    ])
+    expect(Object.keys(m.completes[0]!.result).every((k) => (DESK_LEG_RESULT_KEYS as readonly string[]).includes(k))).toBe(true)
   })
 
   it('refuses a withheld re-quote rather than signing calldata that would revert', async () => {
@@ -201,6 +208,13 @@ describe.skipIf(!SDK_PRESENT)('driveJob against the mock desk', () => {
     // The action went back to the relay unchanged, key order and all.
     expect(m.hlSubmits[0]!.action).toEqual({ orders: [], type: 'order' })
     expect(m.broadcasts).toEqual([])
+    // The venue's own answer reaches the runner: the fill it reported and the
+    // status word it used, not just our summary of them.
+    const hlResult = m.completes[0]!.result as { fill?: Record<string, unknown>; status?: string; detail?: string }
+    expect(hlResult.fill).toEqual({ totalSz: '1.0', avgPx: '42.0' })
+    expect(hlResult.status).toBe('ok')
+    expect(hlResult.detail).toContain('filled 1.0 @ 42.0')
+    expect(Object.keys(m.completes[0]!.result).every((k) => (DESK_LEG_RESULT_KEYS as readonly string[]).includes(k))).toBe(true)
   })
 
   it('signs a Hyperliquid batch in order, from the top-level orderRequest.batch', async () => {
@@ -230,7 +244,7 @@ describe.skipIf(!SDK_PRESENT)('driveJob against the mock desk', () => {
     expect(batch[1]!.ok).toBe(false)
     expect(batch[1]!.error).toMatch(/insufficient margin/)
     // And only the keys the runner accepts came back.
-    expect(Object.keys(m.completes[0]!.result).every((k) => (LEG_RESULT_KEYS as readonly string[]).includes(k))).toBe(true)
+    expect(Object.keys(m.completes[0]!.result).every((k) => (DESK_LEG_RESULT_KEYS as readonly string[]).includes(k))).toBe(true)
   })
 
   it('classifies every leg and signs nothing in dryRun', async () => {
