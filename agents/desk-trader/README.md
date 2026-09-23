@@ -178,9 +178,10 @@ Deposit 13 USDC to Hyperliquid, then 2x long $12 of HYPE, then protect my HYPE l
 Four legs across two settlement boundaries. That is the shape this example is
 about.
 
-> The desk is learning to compose that funding leg itself, so the bare sentence
-> will compile too. Until that ships, the compound is the shape that works, and
-> the refusal above is what production says today.
+> The desk is learning to compose that funding leg itself (website#851), after
+> which the bare sentence compiles too. Until that reaches production the
+> compound is the shape that works, and the refusal above is what production
+> says today.
 
 ## The install (what an agent actually writes)
 
