@@ -11,7 +11,7 @@
  */
 import { createServer, type Server } from 'node:http'
 import { recoverMessageAddress, recoverTypedDataAddress, keccak256, toHex } from 'viem'
-import { deskExecuteConsentMessage } from '../src/desk.js'
+import { deskExecuteConsentMessage } from '../src/desk'
 
 export interface MockStep {
   seq: number

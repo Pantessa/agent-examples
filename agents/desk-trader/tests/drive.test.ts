@@ -16,7 +16,7 @@ import { describe, it, expect, afterEach } from 'vitest'
 import { privateKeyToAccount } from 'viem/accounts'
 import { recoverTransactionAddress, parseTransaction, type TransactionSerialized } from 'viem'
 import { DESK_LEG_RESULT_KEYS } from 'pantessa/desk'
-import { startMockDesk, type MockDesk, type MockScenario, type MockStep } from './mock-desk.js'
+import { startMockDesk, type MockDesk, type MockScenario, type MockStep } from './mock-desk'
 
 declare const __SDK_PRESENT__: boolean
 const SDK_PRESENT = typeof __SDK_PRESENT__ === 'boolean' ? __SDK_PRESENT__ : false

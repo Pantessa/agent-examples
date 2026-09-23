@@ -1,11 +1,11 @@
 import { describe, it, expect } from 'vitest'
 import { privateKeyToAccount } from 'viem/accounts'
 import { recoverMessageAddress } from 'viem'
-import { parseMcpBody, deskExecuteConsentMessage, looksLikeConsentMismatch, tokenFromDriveUrl, Desk, DeskRefusal } from '../src/desk.js'
+import { parseMcpBody, deskExecuteConsentMessage, looksLikeConsentMismatch, tokenFromDriveUrl, Desk, DeskRefusal } from '../src/desk'
 import { deskExecuteConsentMessage as sdkConsent } from 'pantessa/desk'
-import { pickOption } from '../src/agent.js'
-import { loadConfig, DEFAULT_ASK } from '../src/config.js'
-import type { BrokerPlan } from '../src/desk.js'
+import { pickOption } from '../src/agent'
+import { loadConfig, DEFAULT_ASK } from '../src/config'
+import type { BrokerPlan } from '../src/desk'
 
 const KEY = '0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d' as const
 const ACCOUNT = privateKeyToAccount(KEY)
@@ -135,7 +135,7 @@ describe('picking the route', () => {
 
 describe('the config', () => {
   it('runs dry against production on a fresh key when nothing is set', () => {
-    const cfg = loadConfig({} as NodeJS.ProcessEnv, [])
+    const cfg = loadConfig({} as Record<string, string | undefined>, [])
     expect(cfg.live).toBe(false)
     expect(cfg.bringsOwnKey).toBe(false)
     expect(cfg.base).toBe('https://www.pantessa.com')
@@ -147,7 +147,7 @@ describe('the config', () => {
   })
 
   it('reads the key, the base, the ask and LIVE from the environment', () => {
-    const cfg = loadConfig({ AGENT_KEY: KEY, PANTESSA_BASE: 'http://localhost:3860/', ASK: 'Buy $5 of ETH on base', LIVE: '1' } as NodeJS.ProcessEnv, [])
+    const cfg = loadConfig({ AGENT_KEY: KEY, PANTESSA_BASE: 'http://localhost:3860/', ASK: 'Buy $5 of ETH on base', LIVE: '1' } as Record<string, string | undefined>, [])
     expect(cfg.account.address).toBe(ACCOUNT.address)
     expect(cfg.bringsOwnKey).toBe(true)
     expect(cfg.base).toBe('http://localhost:3860')
@@ -156,7 +156,7 @@ describe('the config', () => {
   })
 
   it('takes a 0x-less key and both --flag forms', () => {
-    const cfg = loadConfig({ AGENT_KEY: KEY.slice(2) } as NodeJS.ProcessEnv, ['--ask', 'x', '--option=3'])
+    const cfg = loadConfig({ AGENT_KEY: KEY.slice(2) } as Record<string, string | undefined>, ['--ask', 'x', '--option=3'])
     expect(cfg.account.address).toBe(ACCOUNT.address)
     expect(cfg.ask).toBe('x')
     expect(cfg.optionIndex).toBe(3)
@@ -172,14 +172,14 @@ describe('the config', () => {
 
 describe('RPC_URLS', () => {
   it('parses a chain-id map', () => {
-    expect(loadConfig({ RPC_URLS: '{"8453":"https://base.example/rpc"}' } as NodeJS.ProcessEnv, []).rpc).toEqual({ 8453: 'https://base.example/rpc' })
+    expect(loadConfig({ RPC_URLS: '{"8453":"https://base.example/rpc"}' } as Record<string, string | undefined>, []).rpc).toEqual({ 8453: 'https://base.example/rpc' })
   })
   it('is absent when unset', () => {
-    expect(loadConfig({} as NodeJS.ProcessEnv, []).rpc).toBeUndefined()
+    expect(loadConfig({} as Record<string, string | undefined>, []).rpc).toBeUndefined()
   })
   it('refuses a malformed map by name rather than broadcasting through the wrong node', () => {
-    expect(() => loadConfig({ RPC_URLS: 'nope' } as NodeJS.ProcessEnv, [])).toThrow(/valid JSON/)
-    expect(() => loadConfig({ RPC_URLS: '{"8453":"ftp://x"}' } as NodeJS.ProcessEnv, [])).toThrow(/http\(s\) url/)
-    expect(() => loadConfig({ RPC_URLS: '{"base":"https://x"}' } as NodeJS.ProcessEnv, [])).toThrow(/chain id/)
+    expect(() => loadConfig({ RPC_URLS: 'nope' } as Record<string, string | undefined>, [])).toThrow(/valid JSON/)
+    expect(() => loadConfig({ RPC_URLS: '{"8453":"ftp://x"}' } as Record<string, string | undefined>, [])).toThrow(/http\(s\) url/)
+    expect(() => loadConfig({ RPC_URLS: '{"base":"https://x"}' } as Record<string, string | undefined>, [])).toThrow(/chain id/)
   })
 })

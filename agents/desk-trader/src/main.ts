@@ -12,8 +12,8 @@
  * guard refuses, which is the product working, not a failure. Non-zero is
  * reserved for the agent's own faults: bad config, an unreachable desk, a bug.
  */
-import { loadConfig } from './config.js'
-import { runDeskTrader } from './agent.js'
+import { loadConfig } from './config'
+import { runDeskTrader } from './agent'
 
 async function main(): Promise<number> {
   const cfg = loadConfig()

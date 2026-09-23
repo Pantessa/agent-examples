@@ -21,7 +21,7 @@
  */
 import { driveJob, type DeskLegView, type DeskLegResult } from 'pantessa/desk'
 import type { PrivateKeyAccount } from 'viem/accounts'
-import { Desk, DeskRefusal, deskExecuteConsentMessage, looksLikeConsentMismatch, tokenFromDriveUrl, type BrokerOption, type BrokerPlan } from './desk.js'
+import { Desk, DeskRefusal, deskExecuteConsentMessage, looksLikeConsentMismatch, tokenFromDriveUrl, type BrokerOption, type BrokerPlan } from './desk'
 
 export interface RunOptions {
   account: PrivateKeyAccount
