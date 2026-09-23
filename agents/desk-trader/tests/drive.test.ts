@@ -140,14 +140,19 @@ describe.skipIf(!SDK_PRESENT)('driveJob against the mock desk', () => {
     // Step 2 went out with the FRESH calldata the re-quote returned, not the
     // stale bytes the artifact was built with — the dead-calldata rule.
     expect(parseTransaction(m.broadcasts[1]!.raw as TransactionSerialized).to?.toLowerCase()).toBe('0x000000000000000000000000000000000000c0de')
-    // The completion names the LAST hash in the chain, and lists every hop as
-    // exactly { hash, chainId } — the runner's fence drops anything else.
+    // The completion names the LAST hash in the chain, and lists every hop in
+    // order. An entry is { hash, chainId, title? } — `title` is optional, so
+    // it is allowed but nothing ELSE is: the key set is fenced, which is what
+    // catches a field creeping back in past the runner's own allowlist.
     expect(m.completes[0]!.result.txHash).toBe(m.broadcasts[1]!.hash)
     const txs = (m.completes[0]!.result as { txs: Array<Record<string, unknown>> }).txs
-    expect(txs).toEqual([
+    expect(txs).toMatchObject([
       { hash: m.broadcasts[0]!.hash, chainId: 8453 },
       { hash: m.broadcasts[1]!.hash, chainId: 8453 },
     ])
+    for (const hop of txs) {
+      expect(Object.keys(hop).every((k) => ['hash', 'chainId', 'title'].includes(k))).toBe(true)
+    }
     expect(Object.keys(m.completes[0]!.result).every((k) => (DESK_LEG_RESULT_KEYS as readonly string[]).includes(k))).toBe(true)
   })
 
