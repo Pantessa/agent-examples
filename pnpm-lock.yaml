@@ -49,6 +49,28 @@ importers:
         specifier: ^2.1.8
         version: 2.1.9(@types/node@22.20.0)(jsdom@25.0.1)
 
+  agents/desk-trader:
+    dependencies:
+      pantessa:
+        specifier: ^1.1.0
+        version: 1.1.0(viem@2.53.1)
+      viem:
+        specifier: ^2.21.0
+        version: 2.53.1(typescript@5.9.3)
+    devDependencies:
+      '@types/node':
+        specifier: ^22.10.5
+        version: 22.20.0
+      tsx:
+        specifier: ^4.19.2
+        version: 4.23.13
+      typescript:
+        specifier: ^5.7.3
+        version: 5.9.3
+      vitest:
+        specifier: ^2.1.8
+        version: 2.1.9(@types/node@22.20.0)(jsdom@25.0.1)
+
   agents/lazy-trader:
     dependencies:
       '@yeetful/agent-kit':
@@ -1876,6 +1898,15 @@ packages:
 
   /pantessa@1.0.0(viem@2.53.1):
     resolution: {integrity: sha512-QBIicvDiU0IDxncvis9y9Nt3iInz2HQhO5wsm/RlI1ANcI1jD2+YuxcXGg5M/xVbLneb81fjkrTmD8ATs4wwrA==}
+    engines: {node: '>=18'}
+    peerDependencies:
+      viem: ^2.21.0
+    dependencies:
+      viem: 2.53.1(typescript@5.9.3)
+    dev: false
+
+  /pantessa@1.1.0(viem@2.53.1):
+    resolution: {integrity: sha512-6AJ6b1kyF0kYUUYCpvfrrtzwk10449h+CpMVq38XOrHMVdRdu4+ZVdp7I+OL7G4DL2rG+qfN9eq5/uQfD/DNkg==}
     engines: {node: '>=18'}
     peerDependencies:
       viem: ^2.21.0
