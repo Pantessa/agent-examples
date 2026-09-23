@@ -174,19 +174,19 @@ export async function runDeskTrader(opts: RunOptions): Promise<RunOutcome> {
   if (result.withheld) {
     say(`\nWITHHELD at leg ${result.withheld.seq} — ${result.withheld.reason}`)
     say('Nothing was signed, and the job is still live: fund the wallet and it picks up where it stopped.')
-    if (!opts.live) await closeQuietly(desk, open.intentId, say)
+    if (!opts.live) await closeQuietly(desk, open.intentId, opts.agentKey, say)
     return { kind: 'withheld', why: result.withheld.reason, seq: result.withheld.seq, intentId: open.intentId, jobId: ex.jobId }
   }
   if (result.status === 'failed') {
     say(`\nGUARD REFUSED — ${result.failReason ?? 'the runner failed the job'}`)
     say('Nothing was signed. The build is fail-closed: a leg it cannot check is a leg it will not offer.')
-    await closeQuietly(desk, open.intentId, say)
+    await closeQuietly(desk, open.intentId, opts.agentKey, say)
     return { kind: 'refused', where: 'guard', why: result.failReason ?? 'the runner failed the job', intentId: open.intentId, jobId: ex.jobId }
   }
   if (!opts.live) {
     say(`\nDRY RUN COMPLETE — ${legs.length} leg${legs.length === 1 ? '' : 's'} seen, 0 signed, 0 broadcast.`)
     say('Set LIVE=1 with a funded key to actually do this.')
-    await closeQuietly(desk, open.intentId, say)
+    await closeQuietly(desk, open.intentId, opts.agentKey, say)
     return { kind: 'dry', intentId: open.intentId, jobId: ex.jobId, legs }
   }
   if (result.status === 'done') {
@@ -204,11 +204,11 @@ function refusal(say: (l: string) => void, why: string, intentId?: string): RunO
 
 /** A dry run leaves nothing behind: closing revokes the intent (and cancels
  *  the job it compiled). A LIVE run keeps it — that is the position. */
-async function closeQuietly(desk: Desk, intentId: string, say: (l: string) => void): Promise<void> {
+async function closeQuietly(desk: Desk, intentId: string, agentKey: string, say: (l: string) => void): Promise<void> {
   try {
-    await desk.close(intentId)
+    await desk.close(intentId, agentKey)
     say(`closed    ${intentId} — the dry run leaves nothing behind`)
-  } catch {
-    say(`closed    ${intentId} could not be closed; it expires on its own`)
+  } catch (e) {
+    say(`closed    ${intentId} could not be closed (${e instanceof Error ? e.message : 'unknown'}); it expires on its own`)
   }
 }

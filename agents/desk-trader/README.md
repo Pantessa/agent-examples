@@ -48,8 +48,9 @@ pnpm dev                          # DRY: fresh throwaway key, production desk
 > install the release tarball first: `pnpm add /path/to/pantessa-1.1.0.tgz`.
 >
 > The agent-signed path also needs a desk carrying **website#851** (the five-line
-> consent, and `issued_at` + `agent_key` on `broker_execute`). Against an older
-> deployment the run stops at the consent and names which end is old.
+> consent, and `issued_at` + `agent_key` on `broker_execute` — and on
+> `broker_close`). Against an older deployment the run stops at the consent and
+> names which end is old.
 
 That is safe with nothing configured: it mints a key that holds nothing, opens a
 real intent, consents, lets the desk compile a real job, prints the legs it
@@ -64,20 +65,20 @@ pnpm test                         # 39 checks against a Pantessa in a box
 
 ## What a dry run actually prints
 
-Verbatim, against production **before website#851**, with a wallet that holds
+Verbatim, against the integration branch (2026-09-23), with a wallet that holds
 nothing — the guard posture, end to end:
 
 ```
 note      no AGENT_KEY set — minted a fresh throwaway key for this run.
           It holds nothing, so the desk will read an empty wallet and say so.
 
-wallet    0x368AE1b2A8773Cb43D3E97891e2125dAfe299937
-desk      https://www.pantessa.com
+wallet    0x55917A33471f00a0638BaAb92F3c63844E7dacFb
+desk      http://localhost:3860
 ask       "Deposit 13 USDC to Hyperliquid, then 2x long $12 of HYPE, then protect my HYPE long with a 5% stop"
 mode      DRY — stops before the first broadcast
 
-intent    waw8f39dyp
-record    https://www.pantessa.com/agents/dbad1d50cb307fd5
+intent    egxnm36sxp
+record    https://www.pantessa.com/agents/c745712a7ef9fbb1
 layer     jobs (action) via hyperliquid-free, near-intents-mcp-yeetful
 holdings  $0.00 movable vs $12.00 asked -> short
 
@@ -87,9 +88,9 @@ options
 
 choosing  proceed — Proceed as asked
 
-consent   signed by 0x368AE1b2A8773Cb43D3E97891e2125dAfe299937 at 2026-09-23T11:20:44.107Z (0x68dafee6ba…) — this moves nothing
+consent   signed by 0x55917A33471f00a0638BaAb92F3c63844E7dacFb at 2026-09-23T11:48:23.892Z (0xfa21f86933…) — this moves nothing
 
-job       cmudyv8lb000e123d132hne4z — 4 legs
+job       cmue1hixc00058oiu07vq42ni — 4 legs
    0 sign  Deposit 13 USDC to Hyperliquid
    1 wait  Hyperliquid credits the deposit
    2 sign  2x Long $12 of HYPE on Hyperliquid
@@ -102,15 +103,22 @@ GUARD REFUSED — "Deposit 13 USDC to Hyperliquid" refused: Wallet holds only
 0 USDC on Arbitrum — bridge funds there first (cross-chain swap).
 Nothing was signed. The build is fail-closed: a leg it cannot check is a leg
 it will not offer.
-closed    waw8f39dyp — the dry run leaves nothing behind
+closed    egxnm36sxp — the dry run leaves nothing behind
 
 outcome   {"kind":"refused","where":"guard"}
 ```
 
-Read the end again: the desk compiled the whole four-leg sequence and then
-**refused to produce signable material for leg 0**, because the wallet could not
-pay for it. No calldata ever existed. Fund the burner and the same command walks
-all four legs.
+Two things worth reading twice.
+
+**The consent verified.** A wallet nobody had ever seen signed five lines of
+text, and the desk recovered that address from them, checked the instant inside
+its window, matched the identity, and compiled a four-leg job owned by that
+wallet — with no account, no session, and no key ever leaving this process.
+
+**Then it refused anyway.** The runner built leg 0 fresh and **would not
+produce signable material**, because the wallet could not pay for it. No
+calldata ever existed. Fund the burner and the same command walks all four legs,
+printing each artifact it would sign.
 
 A wallet with money but not enough for *this* leg gets the gentler version —
 `WITHHELD at leg N`, with the runner's own sentence. That is not a failure: the

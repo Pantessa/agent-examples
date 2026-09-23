@@ -147,8 +147,12 @@ describe('the whole loop, against a Pantessa in a box', () => {
     expect(outcome.kind).toBe('dry')
     expect(out).toContain('DRY RUN COMPLETE')
     expect(out).toContain('WOULD sign')
-    // A dry run tidies up after itself.
+    // A dry run tidies up after itself — and walking away proves identity too,
+    // so the close carries the same agent_key the open did (website#854).
     expect(m.calls.at(-1)!.tool).toBe('broker_close')
+    expect(m.calls.at(-1)!.args.agent_key).toBe('desk-trader-test')
+    expect(out).toContain('leaves nothing behind')
+    expect(out).not.toContain('could not be closed')
   })
 
   it('takes the funding route the desk offers, and re-quotes on the rewritten sentence', async () => {

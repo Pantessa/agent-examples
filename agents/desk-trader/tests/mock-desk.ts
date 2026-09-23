@@ -246,6 +246,11 @@ export async function startMockDesk(scenario: MockScenario, walletExpected?: str
         }))
       }
       if (tool === 'broker_close') {
+        // Walking away proves identity too: an intent opened with an agent_key
+        // can only be closed by it (website#854).
+        if (state.agentKey && args.agent_key !== state.agentKey) {
+          return sse(res, toolErr(`Intent ${state.intentId} was opened with an agent identity, so only that identity can close it — pass the same agent_key.`))
+        }
         state.closed = true
         return sse(res, toolOk({ intentId: state.intentId, state: 'closed', say: 'Closed. Any sign link is revoked.' }))
       }

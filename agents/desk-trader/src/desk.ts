@@ -141,8 +141,10 @@ export class Desk {
     })
   }
 
-  close(intentId: string): Promise<{ intentId: string; state: string; say: string }> {
-    return this.call('broker_close', { intent_id: intentId })
+  /** Walking away also proves who you are: an intent opened with an identity
+   *  can only be closed by that identity, so the key rides along here too. */
+  close(intentId: string, agentKey: string): Promise<{ intentId: string; state: string; say: string }> {
+    return this.call('broker_close', { intent_id: intentId, agent_key: agentKey })
   }
 }
 
