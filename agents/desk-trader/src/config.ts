@@ -23,6 +23,30 @@ export interface AgentConfig {
   optionIndex: number | null
   /** Pantessa's own drills only — keeps the run out of the growth arc. */
   internalRun: boolean
+  /** `{ chainId: rpcUrl }` for broadcasting. The SDK has canonical defaults;
+   *  override them when you have your own node (or a rate limit). */
+  rpc?: Record<number, string>
+}
+
+/** RPC_URLS is a JSON map, e.g. `{"8453":"https://…","42161":"https://…"}`.
+ *  A malformed value is refused by name rather than silently ignored — an
+ *  agent that broadcasts through the wrong node is worth stopping. */
+function parseRpc(raw: string | undefined): Record<number, string> | undefined {
+  if (!raw || !raw.trim()) return undefined
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(raw)
+  } catch {
+    throw new Error('RPC_URLS is not valid JSON. Expected {"8453":"https://…"}.')
+  }
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) throw new Error('RPC_URLS must be a {chainId: url} object.')
+  const out: Record<number, string> = {}
+  for (const [k, v] of Object.entries(parsed as Record<string, unknown>)) {
+    const id = Number(k)
+    if (!Number.isInteger(id) || typeof v !== 'string' || !/^https?:\/\//.test(v)) throw new Error(`RPC_URLS entry "${k}" is not a chain id mapped to an http(s) url.`)
+    out[id] = v
+  }
+  return out
 }
 
 /** The shape that actually reaches the agent-signed path today.
@@ -64,5 +88,6 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env, argv: string[] 
     live: env.LIVE === '1',
     optionIndex,
     internalRun: env.INTERNAL_RUN === '1',
+    rpc: parseRpc(env.RPC_URLS),
   }
 }

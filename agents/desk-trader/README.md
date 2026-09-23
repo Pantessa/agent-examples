@@ -121,6 +121,7 @@ all four legs.
 | `ASK` | the sentence. Default: the four-leg compound below |
 | `AGENT_DESK_KEY` | your desk identity. The desk publishes your track record at `/agents/<sha256 of it>`, so a stable string keeps your record in one place. Defaults to one scoped to the wallet |
 | `AGENT_NAME` | the byline the desk shows (default `desk-trader`) |
+| `RPC_URLS` | `{"8453":"https://…"}` — broadcast through your own nodes instead of the SDK's canonical defaults |
 | `INTERNAL_RUN=1` | Pantessa's own drills only — keeps the run out of the growth numbers |
 | `--ask "…"` / `--option N` / `DEBUG=1` | flags: override the sentence, take option N verbatim, print stack traces |
 

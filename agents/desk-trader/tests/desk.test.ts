@@ -138,3 +138,17 @@ describe('the config', () => {
     expect(DEFAULT_ASK).toMatch(/Hyperliquid/i)
   })
 })
+
+describe('RPC_URLS', () => {
+  it('parses a chain-id map', () => {
+    expect(loadConfig({ RPC_URLS: '{"8453":"https://base.example/rpc"}' } as NodeJS.ProcessEnv, []).rpc).toEqual({ 8453: 'https://base.example/rpc' })
+  })
+  it('is absent when unset', () => {
+    expect(loadConfig({} as NodeJS.ProcessEnv, []).rpc).toBeUndefined()
+  })
+  it('refuses a malformed map by name rather than broadcasting through the wrong node', () => {
+    expect(() => loadConfig({ RPC_URLS: 'nope' } as NodeJS.ProcessEnv, [])).toThrow(/valid JSON/)
+    expect(() => loadConfig({ RPC_URLS: '{"8453":"ftp://x"}' } as NodeJS.ProcessEnv, [])).toThrow(/http\(s\) url/)
+    expect(() => loadConfig({ RPC_URLS: '{"base":"https://x"}' } as NodeJS.ProcessEnv, [])).toThrow(/chain id/)
+  })
+})
