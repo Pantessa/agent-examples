@@ -17,6 +17,10 @@ agents/robinhood-desk/   THE EMBED EXAMPLE: a standalone tokenized-stock portfol
                          Robinhood Chain with the Pantessa chat embedded as the execution
                          surface — holdings read from the chain, every button a prompt, the
                          visitor's own wallet signs on the host page (pantessa/embed) → next.js app
+agents/desk-trader/      THE AGENT-SIGNED EXAMPLE: an agent that wants a 2x HYPE long asks the
+                         Pantessa AGENT DESK over MCP, gets its holdings read, picks a funding
+                         route, consents with a personal_sign, and drives the compiled multi-leg
+                         job with its OWN key (pantessa/desk driveJob) — dry-run by default → CLI
 ```
 
 > `x402-services` owns the *payment gate* (a service is a thin adapter over
@@ -60,6 +64,7 @@ projects.
 pnpm install
 pnpm --filter coinbase-agent dev      # or: cd agents/coinbase && pnpm dev
 pnpm --filter robinhood-chain-desk dev # the embed example — agents/robinhood-desk/README.md
+pnpm --filter desk-trader-agent dev    # the agent-signed example (dry run, needs nothing)
 pnpm typecheck                         # whole workspace
 pnpm --filter coinbase-agent test      # JWT + order-builder unit tests
 ```

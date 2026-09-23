@@ -1,0 +1,25 @@
+{
+  "name": "desk-trader-agent",
+  "version": "0.1.0",
+  "private": true,
+  "description": "An agent with its own key gets a 2x HYPE long done through the Pantessa agent desk: broker_open reads its holdings, it picks a funding route, personal_signs the desk's consent, and drives the compiled multi-leg job leg by leg with pantessa/desk driveJob. Dry-run by default \u2014 Pantessa never holds the key.",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx src/main.ts",
+    "start": "tsx src/main.ts",
+    "build": "echo \"(CLI agent \u2014 run it with pnpm dev)\"",
+    "lint": "echo \"(no lint)\"",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "pantessa": "^1.1.0",
+    "viem": "^2.21.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.5",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.3",
+    "vitest": "^2.1.8"
+  }
+}
