@@ -67,7 +67,7 @@ function flagValue(argv: string[], name: string): string | null {
   return eq ? eq.slice(name.length + 3) : null
 }
 
-export function loadConfig(env: NodeJS.ProcessEnv = process.env, argv: string[] = process.argv.slice(2)): AgentConfig {
+export function loadConfig(env: Record<string, string | undefined> = process.env, argv: string[] = process.argv.slice(2)): AgentConfig {
   const raw = (env.AGENT_KEY || '').trim()
   const bringsOwnKey = raw.length > 0
   const key = bringsOwnKey ? (raw.startsWith('0x') ? raw : `0x${raw}`) : generatePrivateKey()

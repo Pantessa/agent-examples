@@ -1,7 +1,7 @@
 import { describe, it, expect, afterEach } from 'vitest'
 import { privateKeyToAccount } from 'viem/accounts'
-import { runDeskTrader } from '../src/agent.js'
-import { startMockDesk, type MockDesk, type MockScenario, type MockStep } from './mock-desk.js'
+import { runDeskTrader } from '../src/agent'
+import { startMockDesk, type MockDesk, type MockScenario, type MockStep } from './mock-desk'
 
 const ACCOUNT = privateKeyToAccount('0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d')
 const ASK = 'Deposit 13 USDC to Hyperliquid, then 2x long $12 of HYPE'
